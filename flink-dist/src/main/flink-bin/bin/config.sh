@@ -46,8 +46,12 @@ constructFlinkClassPath() {
 # cygwin. Cygwin paths are like linux paths, i.e. /path/to/somewhere
 # but the windows java version expects them in Windows Format, i.e. C:\bla\blub.
 # "cygpath" can do the conversion.
+# 如果是Cygwin操作系统，对传入的路径进行处理，否则原样返回
 manglePath() {
+    # 获取当前操作系统名称，如：Linux
     UNAME=$(uname -s)
+    # Cygwin是一个在windows平台上运行的类UNIX模拟环境.
+    # 截取操作系统名称的前6个字符,判断是否是CYGWIN
     if [ "${UNAME:0:6}" == "CYGWIN" ]; then
         echo `cygpath -w "$1"`
     else
@@ -69,15 +73,15 @@ manglePathList() {
 # $1: key to look up
 # $2: default value to return if key does not exist
 # $3: config file to read from
+
+# 从配置文件中(configFile)读取某个key的值
 readFromConfig() {
     local key=$1
     local defaultValue=$2
     local configFile=$3
-
     # first extract the value with the given key (1st sed), then trim the result (2nd sed)
     # if a key exists multiple times, take the "last" one (tail)
     local value=`sed -n "s/^[ ]*${key}[ ]*: \([^#]*\).*$/\1/p" "${configFile}" | sed "s/^ *//;s/ *$//" | tail -n 1`
-
     [ -z "$value" ] && echo "$defaultValue" || echo "$value"
 }
 
@@ -275,12 +279,15 @@ getTebiBytes() {
 # PATHS AND CONFIG
 ########################################################################################################################
 
+# 如果start-cluster.sh调用了这个脚本，那么$0就是start-cluster.sh
 target="$0"
 # For the case, the executable has been directly symlinked, figure out
 # the correct bin path by following its symlink up to an upper bound.
 # Note: we can't use the readlink utility here if we want to be POSIX
 # compatible.
 iteration=0
+
+# 判断是否是符号链接,如果是符号链接,则找到对应的源文件(相对路径).
 while [ -L "$target" ]; do
     if [ "$iteration" -gt 100 ]; then
         echo "Cannot resolve path: You have a cyclic symlink in $target."
@@ -293,41 +300,64 @@ done
 
 # Convert relative path to absolute path and resolve directory symlinks
 bin=`dirname "$target"`
+# 目录是链接目录时，pwd -P  显示出实际路径,而非链接(link)路径；pwd显示的是链接路径
 SYMLINK_RESOLVED_BIN=`cd "$bin"; pwd -P`
 
 # Define the main directory of the flink installation
+# 举例来说 dirname /data/flink/flink-1.5.0/bin 的结果是 /data/flink/flink-1.5.0
 FLINK_ROOT_DIR=`dirname "$SYMLINK_RESOLVED_BIN"`
+echo "FLINK_ROOT_DIR: "$FLINK_ROOT_DIR
+
 FLINK_LIB_DIR=$FLINK_ROOT_DIR/lib
 FLINK_OPT_DIR=$FLINK_ROOT_DIR/opt
 
 ### Exported environment variables ###
 export FLINK_CONF_DIR
+
+echo "FLINK_CONF_DIR: "$FLINK_CONF_DIR
+
 # export /lib dir to access it during deployment of the Yarn staging files
 export FLINK_LIB_DIR
+echo "FLINK_LIB_DIR: "$FLINK_LIB_DIR
 # export /opt dir to access it for the SQL client
 export FLINK_OPT_DIR
+echo "FLINK_OPT_DIR: "$FLINK_OPT_DIR
 
 # These need to be mangled because they are directly passed to java.
 # The above lib path is used by the shell script to retrieve jars in a
 # directory, so it needs to be unmangled.
 FLINK_ROOT_DIR_MANGLED=`manglePath "$FLINK_ROOT_DIR"`
+echo "FLINK_ROOT_DIR_MANGLED: "$FLINK_ROOT_DIR_MANGLED
+
+
+# [ -z "$FLINK_CONF_DIR" ] 表示"$FLINK_CONF_DIR"的长度为0则为真。
+# 如果没有设置FLINK_CONF_DIR，则将它设为$FLINK_ROOT_DIR_MANGLED/conf
 if [ -z "$FLINK_CONF_DIR" ]; then FLINK_CONF_DIR=$FLINK_ROOT_DIR_MANGLED/conf; fi
+echo "FLINK_CONF_DIR: "$FLINK_CONF_DIR
+
+
 FLINK_BIN_DIR=$FLINK_ROOT_DIR_MANGLED/bin
 DEFAULT_FLINK_LOG_DIR=$FLINK_ROOT_DIR_MANGLED/log
 FLINK_CONF_FILE="flink-conf.yaml"
 YAML_CONF=${FLINK_CONF_DIR}/${FLINK_CONF_FILE}
+echo "YAML_CONF: "$YAML_CONF
 
 ########################################################################################################################
 # ENVIRONMENT VARIABLES
 ########################################################################################################################
 
 # read JAVA_HOME from config with no default value
+#echo "KEY_ENV_JAVA_HOME: "$KEY_ENV_JAVA_HOME
+`readFromConfig $KEY_ENV_JAVA_HOME "" ${YAML_CONF}`
 MY_JAVA_HOME=$(readFromConfig ${KEY_ENV_JAVA_HOME} "" "${YAML_CONF}")
+
+
 # check if config specified JAVA_HOME
 if [ -z "${MY_JAVA_HOME}" ]; then
     # config did not specify JAVA_HOME. Use system JAVA_HOME
     MY_JAVA_HOME=${JAVA_HOME}
 fi
+
 # check if we have a valid JAVA_HOME and if java is not available
 if [ -z "${MY_JAVA_HOME}" ] && ! type java > /dev/null 2> /dev/null; then
     echo "Please specify JAVA_HOME. Either in Flink config ./conf/flink-conf.yaml or as system-wide JAVA_HOME."
@@ -335,6 +365,8 @@ if [ -z "${MY_JAVA_HOME}" ] && ! type java > /dev/null 2> /dev/null; then
 else
     JAVA_HOME=${MY_JAVA_HOME}
 fi
+
+echo "JAVA_HOME: "$JAVA_HOME
 
 UNAME=$(uname -s)
 if [ "${UNAME:0:6}" == "CYGWIN" ]; then
@@ -347,23 +379,32 @@ else
     fi
 fi
 
+echo "JAVA_RUN: "$JAVA_RUN
+
+
 # Define HOSTNAME if it is not already set
 if [ -z "${HOSTNAME}" ]; then
     HOSTNAME=`hostname`
 fi
 
+echo "HOSTNAME: "$HOSTNAME
+
 IS_NUMBER="^[0-9]+$"
 
+# JM: Job Manager
 # Define FLINK_JM_HEAP if it is not already set
 if [ -z "${FLINK_JM_HEAP}" ]; then
     FLINK_JM_HEAP=$(readFromConfig ${KEY_JOBM_MEM_SIZE} 0 "${YAML_CONF}")
 fi
+echo "FLINK_JM_HEAP: "$FLINK_JM_HEAP
 
 # Try read old config key, if new key not exists
 if [ "${FLINK_JM_HEAP}" == 0 ]; then
     FLINK_JM_HEAP_MB=$(readFromConfig ${KEY_JOBM_MEM_MB} 0 "${YAML_CONF}")
 fi
+echo "FLINK_JM_HEAP_MB: "$FLINK_JM_HEAP_MB
 
+# TM:Task Manager
 # Define FLINK_TM_HEAP if it is not already set
 if [ -z "${FLINK_TM_HEAP}" ]; then
     FLINK_TM_HEAP=$(readFromConfig ${KEY_TASKM_MEM_SIZE} 0 "${YAML_CONF}")
@@ -385,20 +426,28 @@ if [ -z "${FLINK_TM_MEM_MANAGED_SIZE}" ]; then
     fi
 fi
 
+echo "FLINK_TM_MEM_MANAGED_SIZE: "$FLINK_TM_MEM_MANAGED_SIZE
+
 # Define FLINK_TM_MEM_MANAGED_FRACTION if it is not already set
 if [ -z "${FLINK_TM_MEM_MANAGED_FRACTION}" ]; then
     FLINK_TM_MEM_MANAGED_FRACTION=$(readFromConfig ${KEY_TASKM_MEM_MANAGED_FRACTION} 0.7 "${YAML_CONF}")
 fi
+
+echo "FLINK_TM_MEM_MANAGED_FRACTION: "$FLINK_TM_MEM_MANAGED_FRACTION
 
 # Define FLINK_TM_OFFHEAP if it is not already set
 if [ -z "${FLINK_TM_OFFHEAP}" ]; then
     FLINK_TM_OFFHEAP=$(readFromConfig ${KEY_TASKM_OFFHEAP} "false" "${YAML_CONF}")
 fi
 
+echo "FLINK_TM_OFFHEAP: "$FLINK_TM_OFFHEAP
+
 # Define FLINK_TM_MEM_PRE_ALLOCATE if it is not already set
 if [ -z "${FLINK_TM_MEM_PRE_ALLOCATE}" ]; then
     FLINK_TM_MEM_PRE_ALLOCATE=$(readFromConfig ${KEY_TASKM_MEM_PRE_ALLOCATE} "false" "${YAML_CONF}")
 fi
+
+echo "FLINK_TM_MEM_PRE_ALLOCATE: "$FLINK_TM_MEM_PRE_ALLOCATE
 
 
 # Define FLINK_TM_NET_BUF_FRACTION if it is not already set
@@ -448,18 +497,22 @@ fi
 if [ -z "${FLINK_LOG_DIR}" ]; then
     FLINK_LOG_DIR=$(readFromConfig ${KEY_ENV_LOG_DIR} "${DEFAULT_FLINK_LOG_DIR}" "${YAML_CONF}")
 fi
+echo "FLINK_LOG_DIR: "$FLINK_LOG_DIR
 
 if [ -z "${YARN_CONF_DIR}" ]; then
     YARN_CONF_DIR=$(readFromConfig ${KEY_ENV_YARN_CONF_DIR} "${DEFAULT_YARN_CONF_DIR}" "${YAML_CONF}")
 fi
+echo "YARN_CONF_DIR: "$YARN_CONF_DIR
 
 if [ -z "${HADOOP_CONF_DIR}" ]; then
     HADOOP_CONF_DIR=$(readFromConfig ${KEY_ENV_HADOOP_CONF_DIR} "${DEFAULT_HADOOP_CONF_DIR}" "${YAML_CONF}")
 fi
+echo "HADOOP_CONF_DIR: "$HADOOP_CONF_DIR
 
 if [ -z "${FLINK_PID_DIR}" ]; then
     FLINK_PID_DIR=$(readFromConfig ${KEY_ENV_PID_DIR} "${DEFAULT_ENV_PID_DIR}" "${YAML_CONF}")
 fi
+echo "FLINK_PID_DIR: "$FLINK_PID_DIR
 
 if [ -z "${FLINK_ENV_JAVA_OPTS}" ]; then
     FLINK_ENV_JAVA_OPTS=$(readFromConfig ${KEY_ENV_JAVA_OPTS} "${DEFAULT_ENV_JAVA_OPTS}" "${YAML_CONF}")
@@ -518,6 +571,7 @@ fi
 if [ -z "${JVM_ARGS}" ]; then
     JVM_ARGS=""
 fi
+echo "JVM_ARGS: "$JVM_ARGS
 
 # Check if deprecated HADOOP_HOME is set, and specify config path to HADOOP_CONF_DIR if it's empty.
 if [ -z "$HADOOP_CONF_DIR" ]; then

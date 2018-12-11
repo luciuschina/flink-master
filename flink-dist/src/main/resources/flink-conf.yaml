@@ -16,6 +16,14 @@
 # limitations under the License.
 ################################################################################
 
+#=======================================
+# Add By Lucius
+#=======================================
+
+# env.java.home在config.sh中被读取:
+# env.java.home: /hadoop/java/jdk1.8.0_131
+# env.java.home: /hadoop/java/jdk1.8.0_131
+
 
 #==============================================================================
 # Common
@@ -40,6 +48,8 @@ jobmanager.rpc.port: 6123
 # The heap size for the JobManager JVM
 
 jobmanager.heap.size: 1024m
+
+# jobmanager.heap.mb: 1024
 
 
 # The heap size for the TaskManager JVM
