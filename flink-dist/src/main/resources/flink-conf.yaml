@@ -22,7 +22,6 @@
 
 # env.java.home在config.sh中被读取:
 # env.java.home: /hadoop/java/jdk1.8.0_131
-# env.java.home: /hadoop/java/jdk1.8.0_131
 
 
 #==============================================================================
@@ -48,7 +47,7 @@ jobmanager.rpc.port: 6123
 # The heap size for the JobManager JVM
 
 jobmanager.heap.size: 1024m
-
+# `jobmanager.heap.mb` is a deprecated key, use `jobmanager.heap.size` instead
 # jobmanager.heap.mb: 1024
 
 

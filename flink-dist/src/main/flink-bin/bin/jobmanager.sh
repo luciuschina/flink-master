@@ -20,6 +20,7 @@
 # Start/stop a Flink JobManager.
 USAGE="Usage: jobmanager.sh ((start|start-foreground) [host] [webui-port])|stop|stop-all"
 
+
 STARTSTOP=$1
 HOST=$2 # optional when starting multiple instances
 WEBUIPORT=$3 # optional when starting multiple instances
@@ -35,29 +36,41 @@ bin=`cd "$bin"; pwd`
 . "$bin"/config.sh
 
 ENTRYPOINT=standalonesession
+echo "ENTRYPOINT: "$ENTRYPOINT
 
 if [[ $STARTSTOP == "start" ]] || [[ $STARTSTOP == "start-foreground" ]]; then
     if [ ! -z "${FLINK_JM_HEAP_MB}" ] && [ "${FLINK_JM_HEAP}" == 0 ]; then
 	    echo "used deprecated key \`${KEY_JOBM_MEM_MB}\`, please replace with key \`${KEY_JOBM_MEM_SIZE}\`"
     else
 	    flink_jm_heap_bytes=$(parseBytes ${FLINK_JM_HEAP})
+	    # 如果jobmanager.heap.size和jobmanager.heap.mb都设置了，就取jobmanager.heap.size的值
 	    FLINK_JM_HEAP_MB=$(getMebiBytes ${flink_jm_heap_bytes})
     fi
 
+    echo "flink_jm_heap_bytes":$flink_jm_heap_bytes
+    echo "FLINK_JM_HEAP_MB":$FLINK_JM_HEAP_MB
+
+    # 判断FLINK_JM_HEAP_MB的值是否合法
     if [[ ! ${FLINK_JM_HEAP_MB} =~ $IS_NUMBER ]] || [[ "${FLINK_JM_HEAP_MB}" -lt "0" ]]; then
         echo "[ERROR] Configured JobManager memory size is not a valid value. Please set '${KEY_JOBM_MEM_SIZE}' in ${FLINK_CONF_FILE}."
         exit 1
     fi
 
+
     if [ "${FLINK_JM_HEAP_MB}" -gt "0" ]; then
         export JVM_ARGS="$JVM_ARGS -Xms"$FLINK_JM_HEAP_MB"m -Xmx"$FLINK_JM_HEAP_MB"m"
     fi
 
+    echo "JVM_ARGS: "$JVM_ARGS
+
     # Add JobManager-specific JVM options
     export FLINK_ENV_JAVA_OPTS="${FLINK_ENV_JAVA_OPTS} ${FLINK_ENV_JAVA_OPTS_JM}"
 
+    echo "FLINK_ENV_JAVA_OPTS: "$FLINK_ENV_JAVA_OPTS
+
     # Startup parameters
     args=("--configDir" "${FLINK_CONF_DIR}" "--executionMode" "cluster")
+
     if [ ! -z $HOST ]; then
         args+=("--host")
         args+=("${HOST}")
@@ -67,10 +80,18 @@ if [[ $STARTSTOP == "start" ]] || [[ $STARTSTOP == "start-foreground" ]]; then
         args+=("--webui-port")
         args+=("${WEBUIPORT}")
     fi
+
+    # 知识点：遍历数组
+    echo  "=======开始遍历args========"
+    for(( i=0; i < ${#args[@]}; i++)) do
+       echo ${args[i]};
+    done;
+    echo  "=========================="
 fi
 
 if [[ $STARTSTOP == "start-foreground" ]]; then
     exec "${FLINK_BIN_DIR}"/flink-console.sh $ENTRYPOINT "${args[@]}"
 else
+    # 知识点：数组作为参数传入 "${args[@]}"
     "${FLINK_BIN_DIR}"/flink-daemon.sh $STARTSTOP $ENTRYPOINT "${args[@]}"
 fi

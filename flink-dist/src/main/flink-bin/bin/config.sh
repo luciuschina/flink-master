@@ -48,10 +48,10 @@ constructFlinkClassPath() {
 # "cygpath" can do the conversion.
 # 如果是Cygwin操作系统，对传入的路径进行处理，否则原样返回
 manglePath() {
-    # 获取当前操作系统名称，如：Linux
+    # 知识点：获取当前操作系统名称，如：Linux
     UNAME=$(uname -s)
     # Cygwin是一个在windows平台上运行的类UNIX模拟环境.
-    # 截取操作系统名称的前6个字符,判断是否是CYGWIN
+    # 知识点：截取操作系统名称的前6个字符,判断是否是CYGWIN
     if [ "${UNAME:0:6}" == "CYGWIN" ]; then
         echo `cygpath -w "$1"`
     else
@@ -74,7 +74,7 @@ manglePathList() {
 # $2: default value to return if key does not exist
 # $3: config file to read from
 
-# 从配置文件中(configFile)读取某个key的值
+# 知识点：从配置文件中(configFile)读取某个key的值
 readFromConfig() {
     local key=$1
     local defaultValue=$2

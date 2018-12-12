@@ -22,6 +22,7 @@ USAGE="Usage: flink-daemon.sh (start|stop|stop-all) (taskexecutor|zookeeper|hist
 
 STARTSTOP=$1
 DAEMON=$2
+# 知识点：将传入的剩下的参数（即第三个参数及之后的参数）作为一个数组
 ARGS=("${@:3}") # get remaining arguments as array
 
 bin=`dirname "$0"`

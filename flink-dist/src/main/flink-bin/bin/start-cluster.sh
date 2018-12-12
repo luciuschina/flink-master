@@ -17,15 +17,20 @@
 # limitations under the License.
 ################################################################################
 
+# 知识点：下面两行用于获取该文件所在的目录
 bin=`dirname "$0"`
-# 获取该文件所在的目录
 bin=`cd "$bin"; pwd`
 
 . "$bin"/config.sh
 
 # Start the JobManager instance(s)
+
+# 知识点：Bash 有一个 shopt内建命令可用来设置或取消设置许多 shell 选项。
+# 其中一个选项是 nocasematch，如果设置了该选项，它会告诉 shell 在字符串匹配中忽略大小写。
 shopt -s nocasematch
+# 由于设置了nocasematch,所以如果HIGH_AVAILABILITY是"ZOOKEEPER" ，那么下面的判断条件也是true的
 if [[ $HIGH_AVAILABILITY == "zookeeper" ]]; then
+    echo $HIGH_AVAILABILITY"@@@@"
     # HA Mode
     readMasters
 
@@ -46,6 +51,7 @@ else
     echo "Starting cluster."
 
     # Start single JobManager on this machine
+    # nocasematch效果在jobmanager.sh也会体现
     "$FLINK_BIN_DIR"/jobmanager.sh start
 fi
 shopt -u nocasematch
